@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	shell "github.com/ipfs/go-ipfs-api"
-	"github.com/mexirica/decentralized-file-signature/config"
 	"github.com/mexirica/decentralized-file-signature/pkg/signer"
 	"io"
 	"os"
@@ -144,7 +143,7 @@ func RetrieveFileContent(ipfs *shell.Shell) {
 
 // DownloadFile downloads a file from IPFS using its CID and saves it locally in the download path
 // specified in the configuration settings.
-func DownloadFile(ipfs *shell.Shell) {
+func DownloadFile(ipfs *shell.Shell, downloadPath string) {
 	fmt.Print("Enter the file CID: ")
 	var cid string
 	fmt.Scanln(&cid)
@@ -175,7 +174,7 @@ func DownloadFile(ipfs *shell.Shell) {
 		return
 	}
 
-	fullPath := filepath.Join(filepath.Dir(config.DownloadPath), fileName)
+	fullPath := filepath.Join(filepath.Dir(downloadPath), fileName)
 	outFile, err := os.Create(fullPath)
 	if err != nil {
 		fmt.Println("Error creating the local file:", err)

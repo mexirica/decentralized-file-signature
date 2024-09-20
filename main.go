@@ -4,9 +4,8 @@ import (
 	"fmt"
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/mexirica/decentralized-file-signature/cmd/ipfs"
+	"github.com/mexirica/decentralized-file-signature/config"
 )
-
-var downloadPath string
 
 func main() {
 	ipfsClient := shell.NewLocalShell()
@@ -37,7 +36,7 @@ Choose an option:
 		case 4:
 			ipfs.RetrieveFileContent(ipfsClient)
 		case 5:
-			ipfs.DownloadFile(ipfsClient)
+			ipfs.DownloadFile(ipfsClient, config.DownloadPath)
 		case 6:
 			ipfs.ClearScreen()
 		case 7:
