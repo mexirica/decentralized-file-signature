@@ -4,7 +4,10 @@ go 1.22.2
 
 toolchain go1.23.1
 
-require github.com/ipfs/go-ipfs-api v0.7.0
+require (
+	github.com/ipfs/go-ipfs-api v0.7.0
+	github.com/pkg/errors v0.9.1
+)
 
 require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
