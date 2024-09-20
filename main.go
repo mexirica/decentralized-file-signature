@@ -3,29 +3,12 @@ package main
 import (
 	"fmt"
 	shell "github.com/ipfs/go-ipfs-api"
-	"github.com/mexirica/decentralized-file-signature/ipfs"
+	"github.com/mexirica/decentralized-file-signature/cmd/ipfs"
+	"github.com/mexirica/decentralized-file-signature/config"
 )
 
-var downloadPath string
-
 func main() {
-	//ipfs.CheckIPFSInstalled()
 	ipfsClient := shell.NewLocalShell()
-
-	path, _ := ipfs.CheckSettingsFile()
-
-	if path == "" {
-		fmt.Println("Enter the path where the files will be downloaded:")
-		fmt.Scanln(&downloadPath)
-
-		// Atualize o caminho no arquivo de configuração
-		if err := ipfs.UpdateDownloadPath(downloadPath); err != nil {
-			fmt.Println("Error updating settings file:", err)
-			return
-		}
-	} else {
-		downloadPath = path
-	}
 
 	menu := `
 Choose an option:
@@ -34,7 +17,9 @@ Choose an option:
 3. Get file information
 4. Retrieve file content
 5. Download file locally
-6. Exit
+6. Clear terminal
+7. Verify file integrity
+8. Exit
 `
 	for {
 		fmt.Print(menu)
@@ -51,8 +36,12 @@ Choose an option:
 		case 4:
 			ipfs.RetrieveFileContent(ipfsClient)
 		case 5:
-			ipfs.DownloadFile(ipfsClient, downloadPath)
+			ipfs.DownloadFile(ipfsClient, config.DownloadPath)
 		case 6:
+			ipfs.ClearScreen()
+		case 7:
+			ipfs.VerifyIpfsFileIntegrity(ipfsClient)
+		case 8:
 			fmt.Println("Goodbye!")
 			return
 		default:
