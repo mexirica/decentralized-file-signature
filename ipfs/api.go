@@ -4,18 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	shell "github.com/ipfs/go-ipfs-api"
+	"github.com/mexirica/decentralized-file-signature/signer"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 type FileInfo struct {
-	Name string `json:"name"`
-	Size int64  `json:"size"`
-	CID  string `json:"cid"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
+	CID       string `json:"cid"`
+	Signature string `json:"signature"`
 }
-
-const settingsFileName = "settings.json"
 
 func AddFile(ipfs *shell.Shell) {
 	fmt.Print("Enter the file path: ")
@@ -37,6 +39,10 @@ func AddFile(ipfs *shell.Shell) {
 		return
 	}
 
+	content, err := io.ReadAll(file)
+
+	signature, err := signer.Sign(content)
+
 	// Add the file to IPFS
 	cid, err := ipfs.Add(file)
 	if err != nil {
@@ -47,14 +53,15 @@ func AddFile(ipfs *shell.Shell) {
 	fmt.Printf("File successfully added! CID: %s\n", cid)
 
 	// Save the file info to the JSON
-	saveFileInfo(fileInfo.Name(), fileInfo.Size(), cid)
+	saveFileInfo(fileInfo.Name(), fileInfo.Size(), cid, signature)
 }
 
-func saveFileInfo(name string, size int64, cid string) {
+func saveFileInfo(name string, size int64, cid string, signature string) {
 	newFileInfo := FileInfo{
-		Name: name,
-		Size: size,
-		CID:  cid,
+		Name:      name,
+		Size:      size,
+		CID:       cid,
+		Signature: signature,
 	}
 
 	filename := "files.json"
@@ -77,7 +84,7 @@ func ListFiles() {
 	}
 
 	for _, fileInfo := range fileInfoList {
-		fmt.Printf("Name: %s, Size: %dB, CID: %s\n", fileInfo.Name, fileInfo.Size, fileInfo.CID)
+		fmt.Printf("Name: %s, Size: %dB, CID: %s, Signature: %s\n", fileInfo.Name, fileInfo.Size, fileInfo.CID, fileInfo.Signature)
 	}
 }
 
@@ -94,7 +101,7 @@ func GetFileInfo() {
 
 	for _, fileInfo := range fileInfoList {
 		if fileInfo.CID == cid {
-			fmt.Printf("Name: %s, Size: %dB\n", fileInfo.Name, fileInfo.Size)
+			fmt.Printf("Name: %s, Size: %dB, Signature: %s\n", fileInfo.Name, fileInfo.Size, fileInfo.Signature)
 			return
 		}
 	}
@@ -152,7 +159,7 @@ func DownloadFile(ipfs *shell.Shell, downloadPath string) {
 	}
 
 	if fileName == "" {
-		fmt.Println("File information not found in local database.")
+		fmt.Println("File information not found")
 		return
 	}
 
@@ -223,71 +230,52 @@ func loadFileInfo(filename string) ([]FileInfo, error) {
 	return fileInfoList, nil
 }
 
-// CheckSettingsFile checks if the settings file exists and reads the download path.
-// If the file does not exist, it creates a new one with an empty download path.
-func CheckSettingsFile() (string, error) {
-	if _, err := os.Stat(settingsFileName); os.IsNotExist(err) {
-		// File does not exist, create it with default settings
-		return createDefaultSettingsFile()
+func ClearScreen() {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux", "darwin": // Linux and MacOS
+		cmd = exec.Command("clear")
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "cls")
+	default:
+		fmt.Println("Unsupported platform, cannot clear screen.")
+		return
 	}
 
-	// File exists, read and return its content
-	return readSettingsFile()
+	cmd.Stdout = os.Stdout
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("Failed to clear terminal:", err)
+	}
 }
 
-// createDefaultSettingsFile creates a new settings file with default values.
-func createDefaultSettingsFile() (string, error) {
-	defaultData := map[string]string{"downloadpath": ""}
-	jsonData, err := json.Marshal(defaultData)
+func VerifyIpfsFileIntegrity(ipfs *shell.Shell) {
+	var cid string
+	var signature string
+
+	fmt.Println("Enter the file CID:")
+	fmt.Scanln(&cid)
+
+	fmt.Println("Enter the file signature:")
+	fmt.Scanln(&signature)
+	// Retrieve the file content from IPFS
+	r, err := ipfs.Cat(cid)
 	if err != nil {
-		return "", fmt.Errorf("error converting map to JSON: %w", err)
+		fmt.Println("Error retrieving file content:", err)
 	}
+	defer r.Close()
 
-	if err := os.WriteFile(settingsFileName, jsonData, 0644); err != nil {
-		return "", fmt.Errorf("error creating settings.json file: %w", err)
-	}
-
-	fmt.Println("settings.json file created successfully.")
-	return "", nil
-}
-
-// readSettingsFile reads the settings file and returns the download path.
-func readSettingsFile() (string, error) {
-	data, err := os.ReadFile(settingsFileName)
+	// Read the content
+	content, err := io.ReadAll(r)
 	if err != nil {
-		return "", fmt.Errorf("error reading settings file: %w", err)
+		fmt.Println("Error reading file content:", err)
 	}
 
-	var settings map[string]string
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return "", fmt.Errorf("error parsing settings JSON: %w", err)
+	// Verify the signature
+	original := signer.Verify(content, signature)
+	if original {
+		fmt.Println("File integrity confirmed.")
+	} else {
+		fmt.Println("File integrity refuted.")
 	}
-
-	downloadPath, ok := settings["downloadpath"]
-	if !ok {
-		return "", fmt.Errorf("downloadpath key not found in settings file")
-	}
-
-	return downloadPath, nil
-}
-
-// UpdateDownloadPath updates the download path in the settings file.
-func UpdateDownloadPath(newPath string) error {
-	_, err := readSettingsFile()
-	if err != nil && err.Error() != "settings file not found" {
-		return err
-	}
-
-	data := map[string]string{"downloadpath": newPath}
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("error converting map to JSON: %w", err)
-	}
-
-	if err := os.WriteFile(settingsFileName, jsonData, 0644); err != nil {
-		return fmt.Errorf("error updating settings file: %w", err)
-	}
-
-	fmt.Println("Download path updated successfully.")
-	return nil
 }
